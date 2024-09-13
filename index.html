@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detection with Beep</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <style>
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+
+<video id="webcam" autoplay muted playsinline width="640" height="480"></video>
+<canvas id="canvas"></canvas>
+
+<!-- Add a beep sound file -->
+<audio id="beep" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
+
+<script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const beep = document.getElementById('beep');  // Reference to the beep sound
+    let lastBeepTime = 0;  // To control the beep frequency
+    const beepCooldown = 2000;  // 2 seconds cooldown for beep
+
+    // Load the COCO SSD model
+    cocoSsd.load().then(model => {
+        // Access the camera
+        navigator.mediaDevices.getUserMedia({
+            video: true
+        }).then(stream => {
+            video.srcObject = stream;
+            video.addEventListener('loadeddata', () => {
+                detectObjects(model);
+            });
+        });
+    });
+
+    function detectObjects(model) {
+        model.detect(video).then(predictions => {
+            // Clear the previous drawings
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let objectDetected = false;  // Flag to track detection
+
+            // Draw predictions
+            predictions.forEach(prediction => {
+                ctx.beginPath();
+                ctx.rect(...prediction.bbox);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'green';
+                ctx.fillStyle = 'green';
+                ctx.stroke();
+                ctx.fillText(
+                    `${prediction.class} (${(prediction.score * 100).toFixed(2)}%)`,
+                    prediction.bbox[0],
+                    prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
+                );
+
+                if (prediction.score > 0.5) {  // Object detected with confidence > 50%
+                    objectDetected = true;
+                }
+            });
+
+            // Play beep sound if an object is detected and cooldown period has passed
+            let currentTime = Date.now();
+            if (objectDetected && currentTime - lastBeepTime > beepCooldown) {
+                beep.play();  // Play the beep sound
+                lastBeepTime = currentTime;  // Reset the beep cooldown timer
+            }
+
+            // Call the detection function again for continuous detection
+            requestAnimationFrame(() => detectObjects(model));
+        });
+    }
+</script>
+
+</body>
+</html>
